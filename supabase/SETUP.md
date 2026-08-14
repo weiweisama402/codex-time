@@ -14,17 +14,22 @@
 
 应用调用 `signInWithOtp(... shouldCreateUser: false)`，陌生邮箱无法自行注册。
 
-## 3. 配置登录邮件
+## 3. 配置自定义 SMTP 与验证码邮件
 
-应用同时支持默认 Magic Link 和 6 位验证码。新建免费项目可以直接保留默认 Magic Link 模板；如果项目已配置自定义 SMTP，并希望改用验证码，可在 Authentication → Email Templates → Magic Link 中使用：
+应用仅支持 6 位邮箱验证码，不再使用 Magic Link。2026-06-03 后创建的 Free 项目使用 Supabase 默认邮件服务时不能修改认证邮件模板，因此必须先在 Authentication → Email → SMTP Settings 中启用自定义 SMTP。
+
+个人使用可以配置 Gmail SMTP（需要 Google 两步验证和应用专用密码），也可以使用 Resend、Postmark、SendGrid 或 Amazon SES。SMTP 密码只填写在 Supabase Dashboard，不要写入仓库或前端环境变量。
+
+启用自定义 SMTP 后，在 Authentication → Email Templates → Magic Link 中使用：
 
 ```html
 <h2>时衡登录验证码</h2>
 <p>你的验证码是：<strong>{{ .Token }}</strong></p>
-<p>验证码短时间内有效。如果不是你本人操作，请忽略本邮件。</p>
+<p>请在“时衡”登录页输入验证码。不要将验证码告诉任何人。</p>
+<p>验证码短时间内有效；如果不是你本人操作，请忽略本邮件。</p>
 ```
 
-无论使用哪种模板，应用调用 `signInWithOtp(... shouldCreateUser: false)`，不会从登录页创建陌生账号。
+模板必须包含 `{{ .Token }}`，不能只保留 `{{ .ConfirmationURL }}`。应用调用 `signInWithOtp(... shouldCreateUser: false)`，不会从登录页创建陌生账号；验证时调用 `verifyOtp({ email, token, type: 'email' })`。
 
 ## 4. 配置 URL
 
