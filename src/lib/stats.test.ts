@@ -1,86 +1,55 @@
 import { describe, expect, it } from 'vitest';
-import { activeEntries, dailySeries, entriesInRange, hasOverlap, projectTotals, totals } from './stats';
-import type { TimeEntry } from '../types';
-
-const makeEntry = (
-  id: string,
-  categoryKey: TimeEntry['categoryKey'],
-  durationSeconds: number,
-  start?: string,
-  end?: string
-): TimeEntry => ({
-  id,
-  userId: '00000000-0000-4000-8000-000000000001',
-  version: 0,
-  createdAt: '2026-08-14T00:00:00Z',
-  updatedAt: '2026-08-14T00:00:00Z',
-  deletedAt: null,
-  dateKey: '2026-08-14',
-  startedAt: start ?? null,
-  endedAt: end ?? null,
-  durationSeconds,
-  categoryKey,
-  projectId: null,
-  taskId: null,
-  tagIds: [],
-  title: id,
-  note: '',
-  source: 'manual'
-});
+import { activeEntries, dailySeries, entriesInRange, recentActivities, totals } from './stats';
+import { makeEntry } from '../test/factories';
 
 describe('statistics', () => {
   const entries = [
-    makeEntry('00000000-0000-4000-8000-000000000011', 'main', 3600),
-    makeEntry('00000000-0000-4000-8000-000000000012', 'extra', 1800),
-    makeEntry('00000000-0000-4000-8000-000000000013', 'fun', 900)
+    makeEntry({ id: crypto.randomUUID(), categoryKey: 'main', durationSeconds: 3600 }),
+    makeEntry({ id: crypto.randomUUID(), categoryKey: 'extra', durationSeconds: 1800 }),
+    makeEntry({ id: crypto.randomUUID(), categoryKey: 'fun', durationSeconds: 900 }),
+    makeEntry({
+      id: crypto.randomUUID(),
+      dateKey: '2026-08-13',
+      categoryKey: 'leisure',
+      durationSeconds: 600
+    }),
+    makeEntry({
+      id: crypto.randomUUID(),
+      title: '已删除',
+      deletedAt: '2026-08-14T09:00:00.000Z',
+      durationSeconds: 9999
+    })
   ];
-  it('calculates effective time independently from total', () => {
+
+  it('aggregates total, effective time and four categories', () => {
     const result = totals(entries);
-    expect(result.total).toBe(6300);
+    expect(result.total).toBe(6900);
     expect(result.effective).toBe(5400);
-    expect(result.activeDays).toBe(1);
+    expect(result.effectiveRate).toBe(78);
+    expect(result.byCategory.leisure).toBe(600);
+    expect(totals([]).effectiveRate).toBe(0);
   });
-  it('excludes soft-deleted records and filters inclusive ranges', () => {
-    const deleted = {
-      ...entries[0]!,
-      id: '00000000-0000-4000-8000-000000000099',
-      deletedAt: '2026-08-15T00:00:00Z'
-    };
-    expect(activeEntries([...entries, deleted])).toHaveLength(3);
+
+  it('filters soft-deleted records and date ranges', () => {
+    expect(activeEntries(entries)).toHaveLength(4);
     expect(entriesInRange(entries, '2026-08-14', '2026-08-14')).toHaveLength(3);
-    expect(entriesInRange(entries, '2026-08-15', '2026-08-16')).toEqual([]);
-    expect(totals([])).toMatchObject({ total: 0, effective: 0, activeDays: 0 });
+    const series = dailySeries(entries, '2026-08-13', '2026-08-14');
+    expect(series.map((item) => item.total)).toEqual([600, 6300]);
   });
-  it('fills missing days in daily series', () => {
-    const series = dailySeries(entries, '2026-08-13', '2026-08-15');
-    expect(series).toHaveLength(3);
-    expect(series[0]?.total).toBe(0);
-    expect(series[1]?.main).toBe(3600);
-  });
-  it('detects overlapping scheduled entries', () => {
-    const a = makeEntry(
-      '00000000-0000-4000-8000-000000000021',
-      'main',
-      3600,
-      '2026-08-14T01:00:00Z',
-      '2026-08-14T02:00:00Z'
+
+  it('deduplicates recent activity names by category and respects limits', () => {
+    const recent = recentActivities(
+      [
+        makeEntry({ title: 'VUMAT', updatedAt: '2026-08-14T09:00:00Z' }),
+        makeEntry({ title: 'vumat', updatedAt: '2026-08-14T08:00:00Z' }),
+        makeEntry({ title: 'VUMAT', categoryKey: 'extra', updatedAt: '2026-08-14T07:00:00Z' }),
+        makeEntry({ title: '  ', updatedAt: '2026-08-14T10:00:00Z' })
+      ],
+      2
     );
-    const b = makeEntry(
-      '00000000-0000-4000-8000-000000000022',
-      'extra',
-      3600,
-      '2026-08-14T01:30:00Z',
-      '2026-08-14T02:30:00Z'
-    );
-    expect(hasOverlap(a, [a, b])).toBe(true);
-    expect(hasOverlap({ ...a, startedAt: null }, [a, b])).toBe(false);
-    expect(hasOverlap(a, [a, { ...b, startedAt: null }])).toBe(false);
-  });
-  it('aggregates project durations and skips unassigned entries', () => {
-    const projectId = '00000000-0000-4000-8000-000000000031';
-    const assigned = { ...entries[0]!, projectId };
-    const values = projectTotals([assigned, entries[1]!]);
-    expect(values.get(projectId)).toBe(3600);
-    expect(values.size).toBe(1);
+    expect(recent).toEqual([
+      { title: 'VUMAT', categoryKey: 'main' },
+      { title: 'VUMAT', categoryKey: 'extra' }
+    ]);
   });
 });

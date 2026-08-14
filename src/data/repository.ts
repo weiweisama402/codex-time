@@ -1,61 +1,112 @@
-import { db, tableFor } from './db';
-import type { BaseEntity, EntityType, OutboxMutation, SyncedEntity } from '../types';
+import { DEFAULT_SETTINGS, SOFT_DELETE_RETENTION_DAYS } from '../constants';
+import { parseBackup } from '../lib/backup';
+import { db } from './db';
+import type { ActiveTimerV2, BackupV2, MobileSettingsV2, TimeEntryV2 } from '../types';
 
-export function newBase(userId: string, id: string = crypto.randomUUID()): BaseEntity {
-  const now = new Date().toISOString();
-  return { id, userId, version: 0, createdAt: now, updatedAt: now, deletedAt: null };
+const RETENTION_MS = SOFT_DELETE_RETENTION_DAYS * 86_400_000;
+
+export interface LocalSnapshot {
+  entries: TimeEntryV2[];
+  timer: ActiveTimerV2 | null;
+  settings: MobileSettingsV2;
+  deviceId: string;
+  cloudRevision: number;
+  dirty: boolean;
 }
 
-function payloadOf(entity: SyncedEntity): Record<string, unknown> {
-  return structuredClone(entity) as unknown as Record<string, unknown>;
-}
-
-export async function saveEntity<T extends SyncedEntity>(type: EntityType, entity: T): Promise<T> {
-  const table = tableFor(type);
-  const existingMutation = await db.outbox.where('[entityType+entityId]').equals([type, entity.id]).first();
-  const existingEntity = await table.get(entity.id);
-  const next = { ...entity, updatedAt: new Date().toISOString() } as T;
-  const mutation: OutboxMutation = {
-    userId: next.userId,
-    entityType: type,
-    entityId: next.id,
-    operation: next.deletedAt ? 'delete' : 'upsert',
-    baseVersion: existingMutation?.baseVersion ?? existingEntity?.version ?? 0,
-    payload: payloadOf(next),
-    createdAt: existingMutation?.createdAt ?? new Date().toISOString(),
-    attempts: existingMutation?.attempts ?? 0
-  };
-  await db.transaction('rw', table, db.outbox, async () => {
-    await table.put(next);
-    if (existingMutation?.seq) await db.outbox.put({ ...mutation, seq: existingMutation.seq });
-    else await db.outbox.add(mutation);
+export async function loadLocalSnapshot(now = Date.now()): Promise<LocalSnapshot> {
+  await db.transaction('rw', db.entries, db.settings, db.meta, async () => {
+    await db.entries
+      .where('deletedAt')
+      .below(new Date(now - RETENTION_MS).toISOString())
+      .delete();
+    if (!(await db.settings.get('settings'))) await db.settings.put(DEFAULT_SETTINGS());
+    if (!(await db.meta.get('deviceId'))) await db.meta.put({ key: 'deviceId', value: crypto.randomUUID() });
   });
-  return next;
+  const [entries, timer, settings, deviceId, cloudRevision, dirty] = await Promise.all([
+    db.entries.toArray(),
+    db.timers.get('active'),
+    db.settings.get('settings'),
+    db.meta.get('deviceId'),
+    db.meta.get('cloudRevision'),
+    db.meta.get('dirty')
+  ]);
+  return {
+    entries,
+    timer: timer ?? null,
+    settings: settings ?? DEFAULT_SETTINGS(),
+    deviceId: deviceId!.value,
+    cloudRevision: Number(cloudRevision?.value ?? 0),
+    dirty: dirty?.value === 'true'
+  };
 }
 
-export async function softDelete(type: EntityType, id: string): Promise<void> {
-  const table = tableFor(type);
-  const entity = await table.get(id);
-  if (!entity) return;
-  const now = new Date().toISOString();
-  await saveEntity(type, { ...entity, deletedAt: now, updatedAt: now } as SyncedEntity);
+export async function setEntries(entries: TimeEntryV2[], dirty = true): Promise<void> {
+  await db.transaction('rw', db.entries, db.meta, async () => {
+    await db.entries.bulkPut(entries);
+    if (dirty) await markDirty();
+  });
 }
 
-export async function restoreEntity(type: EntityType, id: string): Promise<void> {
-  const table = tableFor(type);
-  const entity = await table.get(id);
-  if (!entity) return;
-  await saveEntity(type, { ...entity, deletedAt: null, updatedAt: new Date().toISOString() } as SyncedEntity);
+export async function setTimer(timer: ActiveTimerV2 | null, dirty = true): Promise<void> {
+  await db.transaction('rw', db.timers, db.meta, async () => {
+    if (timer) await db.timers.put(timer);
+    else await db.timers.delete('active');
+    if (dirty) await markDirty();
+  });
 }
 
-export async function purgeExpiredTrash(userId: string, days = 30): Promise<void> {
-  const threshold = Date.now() - days * 86400000;
-  for (const type of ['entry', 'project', 'task', 'tag', 'preset', 'plan', 'review'] as EntityType[]) {
-    const table = tableFor(type);
-    const values = await table.where('userId').equals(userId).toArray();
-    const ids = values
-      .filter((value) => value.deletedAt && Date.parse(value.deletedAt) < threshold)
-      .map((value) => value.id);
-    await table.bulkDelete(ids);
-  }
+export async function finishTimer(entries: TimeEntryV2[]): Promise<void> {
+  await db.transaction('rw', db.entries, db.timers, db.meta, async () => {
+    await db.entries.bulkPut(entries);
+    await db.timers.delete('active');
+    await markDirty();
+  });
+}
+
+export async function setSettings(settings: MobileSettingsV2, dirty = true): Promise<void> {
+  await db.transaction('rw', db.settings, db.meta, async () => {
+    await db.settings.put(settings);
+    if (dirty) await markDirty();
+  });
+}
+
+export async function markDirty(): Promise<void> {
+  await db.meta.put({ key: 'dirty', value: 'true' });
+}
+
+export async function setCloudMeta(revision: number, dirty: boolean): Promise<void> {
+  await db.meta.bulkPut([
+    { key: 'cloudRevision', value: String(revision) },
+    { key: 'dirty', value: String(dirty) }
+  ]);
+}
+
+export function buildBackup(snapshot: LocalSnapshot, revision = snapshot.cloudRevision): BackupV2 {
+  return {
+    schemaVersion: '2.0',
+    revision,
+    deviceId: snapshot.deviceId,
+    exportedAt: new Date().toISOString(),
+    entries: snapshot.entries,
+    timer: snapshot.timer,
+    settings: snapshot.settings
+  };
+}
+
+export async function replaceFromBackup(value: unknown, cloudRevision?: number): Promise<BackupV2> {
+  const backup = parseBackup(value);
+  await db.transaction('rw', db.entries, db.timers, db.settings, db.meta, async () => {
+    await db.entries.clear();
+    await db.timers.clear();
+    await db.entries.bulkAdd(backup.entries);
+    if (backup.timer) await db.timers.add(backup.timer);
+    await db.settings.put(backup.settings);
+    await db.meta.bulkPut([
+      { key: 'cloudRevision', value: String(cloudRevision ?? backup.revision) },
+      { key: 'dirty', value: 'false' }
+    ]);
+    if (!(await db.meta.get('deviceId'))) await db.meta.put({ key: 'deviceId', value: crypto.randomUUID() });
+  });
+  return backup;
 }

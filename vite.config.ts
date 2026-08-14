@@ -11,12 +11,13 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {
-        name: '时衡 · 柳比歇夫时间管理',
+        id: '/codex-time/',
+        name: '时衡 v2 · 手机时间账本',
         short_name: '时衡',
-        description: '个人时间记录、统计、复盘与计划工具',
+        description: '基于柳比歇夫方法的手机时间记录与统计工具',
         lang: 'zh-CN',
         display: 'standalone',
-        orientation: 'any',
+        orientation: 'portrait-primary',
         background_color: '#f4f7fb',
         theme_color: '#315c87',
         categories: ['productivity', 'utilities'],
@@ -29,10 +30,9 @@ export default defineConfig({
       workbox: {
         navigateFallback: 'index.html',
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        runtimeCaching: [{ urlPattern: /^https:\/\/.*\.supabase\.co\/.*$/i, handler: 'NetworkOnly' }]
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}']
       }
     })
   ],
-  build: { sourcemap: true, target: 'es2022' }
+  build: { sourcemap: true, target: 'es2022', chunkSizeWarningLimit: 500 }
 });

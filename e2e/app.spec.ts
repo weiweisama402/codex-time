@@ -1,115 +1,134 @@
-import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
+
+const consoleErrors = new WeakMap<import('@playwright/test').Page, string[]>();
 
 test.beforeEach(async ({ page }) => {
-  page.on('pageerror', (error) => console.error(`pageerror: ${error.message}`));
+  const errors: string[] = [];
+  consoleErrors.set(page, errors);
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
   await page.goto('/#/today', { waitUntil: 'domcontentloaded' });
-  const onboarding = page.getByRole('dialog', { name: /让时间成为/ });
-  const heading = page.getByRole('heading', { name: '今日时间账本' });
-  await Promise.race([onboarding.waitFor({ state: 'visible' }), heading.waitFor({ state: 'visible' })]);
-  if (await onboarding.isVisible()) await page.getByRole('button', { name: '从空白项目开始' }).click();
-  await expect(heading).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('heading', { name: '把时间记清楚' })).toBeVisible({ timeout: 10000 });
 });
 
-test('manual entry survives a reload', async ({ page }) => {
-  await page.getByRole('button', { name: '补录时间' }).click();
-  await page.getByLabel('做了什么').fill('整理压剪试验数据');
-  await page.getByLabel('净时长（分钟）').fill('45');
+test.afterEach(async ({ page }) => {
+  expect(consoleErrors.get(page) ?? []).toEqual([]);
+});
+
+async function addEntry(page: import('@playwright/test').Page, title: string, minutes = '45') {
+  await page.getByRole('button', { name: '补录时间' }).first().click();
+  await page.getByLabel('做了什么').fill(title);
+  await page.getByLabel('净时长（分钟）').fill(minutes);
   await page.getByRole('button', { name: '保存记录' }).click();
-  await expect(page.getByText('整理压剪试验数据')).toBeVisible();
+  await expect(page.locator('.entry-row').filter({ hasText: title })).toBeVisible();
+}
+
+test('first use, manual entry and IndexedDB reload', async ({ page }) => {
+  await expect(page.getByText('还没有时间记录')).toBeVisible();
+  await addEntry(page, '整理压剪试验数据');
   await page.reload();
-  await expect(page.getByText('整理压剪试验数据')).toBeVisible();
+  await expect(page.locator('.entry-row').filter({ hasText: '整理压剪试验数据' })).toBeVisible();
+  await expect(page.getByLabel('今日汇总')).toContainText('45m');
 });
 
-test('timer can start, pause and complete', async ({ page }) => {
-  await page.getByLabel('当前活动').fill('VUMAT 调试');
+test('timer persists, pauses, resumes and completes', async ({ page }) => {
+  await page.getByLabel('正在做什么').fill('VUMAT 调试');
   await page.getByRole('button', { name: '开始计时' }).click();
   await expect(page.getByText('正在计时')).toBeVisible();
+  await page.waitForTimeout(1100);
+  await page.reload();
+  await expect(page.getByText('VUMAT 调试', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: '暂停' }).click();
-  await expect(page.getByText('已暂停')).toBeVisible();
-  await page.getByRole('button', { name: '完成并记录' }).click();
-  await expect(page.getByText('VUMAT 调试')).toBeVisible();
+  await expect(page.getByText('计时已暂停')).toBeVisible();
+  await page.getByRole('button', { name: '继续' }).click();
+  await page.getByRole('button', { name: '完成记录' }).click();
+  await expect(page.locator('.entry-row').filter({ hasText: 'VUMAT 调试' })).toBeVisible();
 });
 
-test('an edited and deleted entry can be restored from a JSON backup', async ({ page }) => {
-  await page.getByRole('button', { name: '补录时间' }).click();
-  await page.getByLabel('做了什么').fill('原始实验记录');
-  await page.getByLabel('净时长（分钟）').fill('30');
-  await page.getByRole('button', { name: '保存记录' }).click();
-  await page.getByRole('button', { name: '编辑记录' }).click();
+test('mini timer follows the user across record and statistics tabs', async ({ page }) => {
+  await page.getByLabel('正在做什么').fill('机器学习本构训练');
+  await page.getByRole('button', { name: '开始计时' }).click();
+  await page.getByRole('link', { name: '记录' }).click();
+  await expect(page.getByLabel('进行中的计时')).toContainText('机器学习本构训练');
+  await page.getByRole('link', { name: '统计' }).click();
+  await page.getByLabel('进行中的计时').getByRole('button', { name: '完成记录' }).click();
+  await expect(page.getByLabel('进行中的计时')).toHaveCount(0);
+});
+
+test('edit, copy, soft delete and ten-second undo', async ({ page }) => {
+  await addEntry(page, '原始实验记录', '30');
+  const row = page.locator('.entry-row').filter({ hasText: '原始实验记录' });
+  await row.getByRole('button', { name: /更多操作/ }).click();
+  await row.getByRole('button', { name: '编辑' }).click();
   await page.getByLabel('做了什么').fill('修订后的实验记录');
   await page.getByRole('button', { name: '保存记录' }).click();
-  await expect(page.getByText('修订后的实验记录')).toBeVisible();
+  const edited = page.locator('.entry-row').filter({ hasText: '修订后的实验记录' });
+  await edited.getByRole('button', { name: /更多操作/ }).click();
+  await edited.getByRole('button', { name: '复制' }).click();
+  await expect(page.locator('.entry-row').filter({ hasText: '修订后的实验记录' })).toHaveCount(2);
+  await edited
+    .first()
+    .getByRole('button', { name: /更多操作/ })
+    .click();
+  await edited.first().getByRole('button', { name: '删除' }).click();
+  await expect(page.getByRole('status')).toContainText('已删除');
+  await page.getByRole('button', { name: '撤销' }).click();
+  await expect(page.locator('.entry-row').filter({ hasText: '修订后的实验记录' })).toHaveCount(2);
+});
 
-  await page.goto('/#/settings');
+test('statistics switch between day, week and month', async ({ page }) => {
+  await addEntry(page, '论文写作', '120');
+  await page.getByRole('link', { name: '统计' }).click();
+  await expect(page.getByRole('heading', { name: '时间统计' })).toBeVisible();
+  await expect(page.locator('.stats-hero')).toContainText('2h');
+  await page.getByRole('tab', { name: '今日' }).click();
+  await expect(page.locator('.category-stats')).toContainText('主要工作');
+  await page.getByRole('tab', { name: '本月' }).click();
+  await page.getByRole('button', { name: '上一周期' }).click();
+  await expect(page.locator('.trend-chart > div')).toHaveCount(31);
+});
+
+test('JSON export and atomic import restore the ledger', async ({ page }) => {
+  await addEntry(page, '待备份记录', '20');
+  await page.getByRole('button', { name: '打开设置' }).click();
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: '导出 JSON' }).click();
-  const backupPath = await (await downloadPromise).path();
+  await page.getByRole('button', { name: 'JSON 备份' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^shiheng-v2-.*\.json$/);
+  const backupPath = await download.path();
   expect(backupPath).toBeTruthy();
-
-  await page.goto('/#/today');
-  await page.getByRole('button', { name: '移入回收站' }).click();
-  await expect(page.getByText('修订后的实验记录')).toHaveCount(0);
-  await page.goto('/#/settings');
   page.once('dialog', (dialog) => void dialog.accept());
   await page.locator('input[type="file"]').setInputFiles(backupPath!);
-  await expect(page.getByRole('status')).toContainText('备份导入成功');
-  await page.goto('/#/today');
-  await expect(page.getByText('修订后的实验记录')).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('备份已导入');
 });
 
-test('plans and structured reviews survive reloads', async ({ page }) => {
-  await page.goto('/#/review');
-  await page.getByLabel('目标投入（小时）').fill('2');
-  await page.getByLabel('计划说明').fill('完成一轮模型标定');
-  await page.getByRole('button', { name: '保存计划' }).click();
-  await expect(page.getByRole('article').getByText('完成一轮模型标定')).toBeVisible();
-
-  await page.getByLabel('完成了什么').fill('完成数据清洗');
-  await page.getByLabel('偏差与原因').fill('高应变率数据不足');
-  await page.getByLabel('下一周期调整').fill('补充 Hopkinson 杆试验');
-  await page.getByRole('button', { name: '保存复盘' }).click();
-  await expect(page.getByRole('status')).toContainText('复盘已保存');
-  await page.reload();
-  await expect(page.getByLabel('完成了什么')).toHaveValue('完成数据清洗');
-  await expect(page.getByLabel('下一周期调整')).toHaveValue('补充 Hopkinson 杆试验');
+test('Android back closes the active sheet before leaving the page', async ({ page }) => {
+  await page.getByRole('button', { name: '补录时间' }).first().click();
+  await expect(page.getByRole('dialog', { name: '补录净时间' })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '把时间记清楚' })).toBeVisible();
 });
 
-test('today page has no serious accessibility violations', async ({ page }) => {
-  const results = await new AxeBuilder({ page }).analyze();
-  expect(results.violations.filter((item) => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual(
-    []
-  );
-});
-
-test('all primary pages render and data can be exported', async ({ page }) => {
-  for (const [path, heading] of [
-    ['timeline', '时间轴'],
-    ['insights', '时间洞察'],
-    ['review', '计划与复盘'],
-    ['settings', '设置']
-  ]) {
-    await page.goto(`/#/${path}`);
-    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
-  }
-  await page.getByPlaceholder('新项目名称').fill('机器学习本构');
-  await page.getByRole('button', { name: '添加项目' }).click();
-  await expect(page.locator('.management-list strong').filter({ hasText: '机器学习本构' })).toBeVisible();
-  const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: '导出 JSON' }).click();
-  expect((await download).suggestedFilename()).toMatch(/^shiheng-backup-.*\.json$/);
-});
-
-test('installed app shell reloads while offline', async ({ page, context }) => {
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
+test('installed application shell reloads offline', async ({ page, context }) => {
+  await page.evaluate(async () => navigator.serviceWorker.ready);
   await context.setOffline(true);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: '今日时间账本' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '把时间记清楚' })).toBeVisible();
   await context.setOffline(false);
 });
 
-test('captures the responsive today view', async ({ page }, testInfo) => {
+test('mobile pages have no serious accessibility violations', async ({ page }) => {
+  for (const tab of ['今日', '记录', '统计']) {
+    await page.getByRole('link', { name: tab }).click();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations.filter((item) => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual(
+      []
+    );
+  }
+});
+
+test('captures the candidate mobile layout', async ({ page }, testInfo) => {
   await page.screenshot({ path: testInfo.outputPath(`today-${testInfo.project.name}.png`), fullPage: true });
 });

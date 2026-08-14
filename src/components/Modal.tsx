@@ -13,20 +13,30 @@ export function Modal({
   const closeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.history.pushState({ shihengSheet: true }, '');
+    const onPop = () => onClose();
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && window.history.back();
+    window.addEventListener('popstate', onPop, { once: true });
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [onClose]);
+  const close = () => {
+    if (window.history.state?.shihengSheet) window.history.back();
+    else onClose();
+  };
   return (
     <div
       className="modal-layer"
       role="presentation"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      onMouseDown={(event) => event.target === event.currentTarget && close()}
     >
       <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <header>
           <h2 id="modal-title">{title}</h2>
-          <button ref={closeRef} className="icon-button" onClick={onClose} aria-label="关闭">
+          <button ref={closeRef} className="icon-button" onClick={close} aria-label="关闭">
             <X size={20} />
           </button>
         </header>

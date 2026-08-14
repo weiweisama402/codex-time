@@ -1,49 +1,58 @@
 import { describe, expect, it } from 'vitest';
 import {
-  combineLocalDateTime,
   dateKey,
+  daysSince,
   enumerateDates,
   formatDateLabel,
-  periodBounds,
-  periodStart,
+  monthBounds,
   shiftDateKey,
-  toLocalTimeInput,
-  todayKey
+  shiftMonthKey,
+  splitTimerByDate,
+  todayKey,
+  weekBounds
 } from './date';
+import { makeTimer } from '../test/factories';
 
-describe('date rules', () => {
-  it('creates a date key in the selected timezone', () => {
-    const instant = new Date('2026-08-14T16:30:00.000Z');
-    expect(dateKey(instant, 'Asia/Shanghai')).toBe('2026-08-15');
-    expect(dateKey(instant, 'UTC')).toBe('2026-08-14');
+describe('date and timezone rules', () => {
+  it('uses the selected timezone around midnight and DST', () => {
+    expect(dateKey('2026-08-13T16:00:00.000Z', 'Asia/Shanghai')).toBe('2026-08-14');
+    expect(dateKey('2026-03-08T06:59:00.000Z', 'America/New_York')).toBe('2026-03-08');
+    expect(todayKey('UTC', Date.parse('2024-02-29T23:59:00Z'))).toBe('2024-02-29');
   });
 
-  it('handles leap years and Monday week boundaries', () => {
-    expect(shiftDateKey('2028-02-28', 1)).toBe('2028-02-29');
-    expect(periodBounds('week', '2026-08-14')).toEqual(['2026-08-10', '2026-08-16']);
-    expect(periodBounds('day', '2026-08-14')).toEqual(['2026-08-14', '2026-08-14']);
-    expect(periodBounds('month', '2028-02-14')).toEqual(['2028-02-01', '2028-02-29']);
-    expect(periodBounds('year', '2028-02-14')).toEqual(['2028-01-01', '2028-12-31']);
-    expect(periodStart('month', '2026-08-14')).toBe('2026-08-01');
+  it('handles leap years, Monday weeks, month ends and date enumeration', () => {
+    expect(shiftDateKey('2024-02-28', 1)).toBe('2024-02-29');
+    expect(shiftDateKey('bad', 1)).toBe('bad');
+    expect(shiftMonthKey('2026-01-31', 1)).toBe('2026-02-28');
+    expect(shiftMonthKey('bad', 1)).toBe('bad');
+    expect(weekBounds('2026-08-14')).toEqual(['2026-08-10', '2026-08-16']);
+    expect(monthBounds('2024-02-10')).toEqual(['2024-02-01', '2024-02-29']);
+    expect(enumerateDates('2026-08-13', '2026-08-15')).toEqual(['2026-08-13', '2026-08-14', '2026-08-15']);
   });
 
-  it('enumerates inclusive date ranges', () => {
-    expect(enumerateDates('2026-12-30', '2027-01-02')).toEqual([
-      '2026-12-30',
-      '2026-12-31',
-      '2027-01-01',
-      '2027-01-02'
+  it('splits a timer at local midnight without losing seconds', () => {
+    const timer = makeTimer({
+      startedAt: '2026-02-28T15:59:30.000Z',
+      runningSince: '2026-02-28T15:59:30.000Z'
+    });
+    const result = splitTimerByDate(timer, '2026-02-28T16:00:30.000Z', 'Asia/Shanghai');
+    expect(result.map(({ dateKey: key, durationSeconds }) => [key, durationSeconds])).toEqual([
+      ['2026-02-28', 30],
+      ['2026-03-01', 30]
     ]);
-    expect(enumerateDates('2027-01-02', '2027-01-01')).toEqual([]);
+    expect(result.reduce((sum, item) => sum + item.durationSeconds, 0)).toBe(60);
   });
 
-  it('formats labels and local time inputs', () => {
-    expect(formatDateLabel('2026-08-14', { year: 'numeric' })).toContain('2026');
-    expect(toLocalTimeInput(null)).toBe('');
-    expect(toLocalTimeInput('2026-08-14T01:05:00.000Z')).toMatch(/^\d{2}:\d{2}$/);
-    expect(combineLocalDateTime('2026-08-14', '')).toBeNull();
-    expect(combineLocalDateTime('invalid', '10:00')).toBeNull();
-    expect(combineLocalDateTime('2026-08-14', '10:00')).toMatch(/^2026-08-14T/);
-    expect(todayKey('UTC')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it('supports paused timers and invalid intervals', () => {
+    const paused = makeTimer({
+      startedAt: '2026-08-14T07:00:00.000Z',
+      runningSince: null,
+      status: 'paused',
+      accumulatedSeconds: 90
+    });
+    expect(splitTimerByDate(paused, '2026-08-14T08:00:00.000Z', 'UTC')[0]?.durationSeconds).toBe(90);
+    expect(splitTimerByDate(makeTimer(), '2026-08-14T07:00:00.000Z', 'Asia/Shanghai')).toEqual([]);
+    expect(daysSince('2026-08-12T00:00:00.000Z', Date.parse('2026-08-14T12:00:00.000Z'))).toBe(2);
+    expect(formatDateLabel('2026-08-14')).toContain('8月');
   });
 });
