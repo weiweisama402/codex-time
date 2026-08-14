@@ -2,10 +2,25 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const cwd = fileURLToPath(new URL('..', import.meta.url));
+const testEnv = {
+  ...process.env,
+  VITE_SUPABASE_URL: '',
+  VITE_SUPABASE_ANON_KEY: ''
+};
+
+async function runCommand(command, args, env = process.env) {
+  const child = spawn(command, args, { cwd, stdio: 'inherit', env });
+  const exitCode = await new Promise((resolve) => child.on('exit', (code) => resolve(code ?? 1)));
+  if (exitCode !== 0) throw new Error(`${command} exited with code ${exitCode}`);
+}
+
+await runCommand(process.execPath, ['node_modules/typescript/bin/tsc', '-b'], testEnv);
+await runCommand(process.execPath, ['node_modules/vite/bin/vite.js', 'build'], testEnv);
+
 const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1'], {
   cwd,
   stdio: 'inherit',
-  env: { ...process.env, VITE_E2E: 'true' }
+  env: testEnv
 });
 
 async function waitForServer() {
