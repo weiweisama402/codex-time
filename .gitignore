@@ -26,3 +26,15 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+
+# Node, builds and test artifacts
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+lighthouse-report.*
+.vite/
+
+# Local Supabase tooling
+.supabase/

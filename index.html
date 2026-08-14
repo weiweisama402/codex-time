@@ -1,102 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>柳比歇夫时间管理</title>
-  <meta name="description" content="基于柳比歇夫时间管理法的个人时间记录 PWA：手动记录、日/周/月/年统计。">
-  <meta name="theme-color" content="#f1f5f9" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-  <header class="app-header">
-    <div class="header-inner">
-      <h1>柳比歇夫时间管理</h1>
-    </div>
-  </header>
-
-  <main id="main">
-    <section id="view-today" class="view">
-      <div class="date-nav">
-        <button class="btn small" id="today-prev">‹</button>
-        <input type="date" id="today-date" class="input date-input">
-        <button class="btn small" id="today-next">›</button>
-        <button class="btn small" id="today-now">今天</button>
-      </div>
-      <div id="today-summary" class="summary-cards"></div>
-      <div id="today-chart" class="card chart"></div>
-      <button class="btn primary block" id="today-add">+ 添加记录</button>
-      <div id="today-list" class="records"></div>
-    </section>
-
-    <section id="view-stats" class="view hidden">
-      <div class="seg" id="stats-mode">
-        <button class="seg-btn active" data-mode="day">日</button>
-        <button class="seg-btn" data-mode="week">周</button>
-        <button class="seg-btn" data-mode="month">月</button>
-        <button class="seg-btn" data-mode="year">年</button>
-      </div>
-      <div class="date-nav">
-        <button class="btn small" id="stats-prev">‹</button>
-        <span id="stats-range"></span>
-        <button class="btn small" id="stats-next">›</button>
-        <button class="btn small" id="stats-now">当前</button>
-      </div>
-      <div id="stats-summary" class="summary-cards"></div>
-      <div id="stats-charts" class="chart-area"></div>
-    </section>
-
-    <section id="view-data" class="view hidden">
-      <div class="card">
-        <h3>数据概览</h3>
-        <div id="data-overview"></div>
-      </div>
-      <div class="card">
-        <h3>备份</h3>
-        <p class="hint">数据只保存在本设备浏览器中。建议定期导出 JSON 备份；换设备时用导入恢复。</p>
-        <div class="btn-row">
-          <button class="btn primary" id="export-json">导出 JSON 备份</button>
-          <button class="btn" id="export-csv">导出 CSV</button>
-        </div>
-      </div>
-      <div class="card">
-        <h3>恢复</h3>
-        <input type="file" id="import-file" accept=".json,application/json" class="hidden">
-        <button class="btn" id="import-json">导入 JSON 备份</button>
-        <p class="hint">导入会替换当前全部数据。</p>
-      </div>
-      <div class="card danger-card">
-        <h3>危险操作</h3>
-        <button class="btn danger" id="clear-data">清空全部数据</button>
-      </div>
-    </section>
-  </main>
-
-  <nav class="tabbar">
-    <button class="tab active" data-view="today">今日</button>
-    <button class="tab" data-view="stats">统计</button>
-    <button class="tab" data-view="data">数据</button>
-  </nav>
-
-  <div id="modal" class="modal hidden">
-    <div class="modal-mask"></div>
-    <div class="modal-box">
-      <div class="modal-head">
-        <h3 id="modal-title"></h3>
-        <button id="modal-close" class="icon-btn">✕</button>
-      </div>
-      <div id="modal-body"></div>
-    </div>
-  </div>
-
-  <div id="toast" class="toast hidden"></div>
-
-  <script type="module" src="js/app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="时衡——基于柳比歇夫方法的个人时间记录、统计、复盘与计划工具。" />
+    <meta name="theme-color" content="#f4f7fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <title>时衡 · 柳比歇夫时间管理</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
