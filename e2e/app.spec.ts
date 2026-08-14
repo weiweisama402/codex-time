@@ -77,16 +77,17 @@ test('edit, copy, soft delete and ten-second undo', async ({ page }) => {
   await expect(page.locator('.entry-row').filter({ hasText: '修订后的实验记录' })).toHaveCount(2);
 });
 
-test('statistics switch between day, week and month', async ({ page }) => {
+test('statistics switch between day and week', async ({ page }) => {
   await addEntry(page, '论文写作', '120');
   await page.getByRole('link', { name: '统计' }).click();
   await expect(page.getByRole('heading', { name: '时间统计' })).toBeVisible();
   await expect(page.locator('.stats-hero')).toContainText('2h');
   await page.getByRole('tab', { name: '今日' }).click();
   await expect(page.locator('.category-stats')).toContainText('主要工作');
-  await page.getByRole('tab', { name: '本月' }).click();
+  await page.getByRole('tab', { name: '本周' }).click();
   await page.getByRole('button', { name: '上一周期' }).click();
-  await expect(page.locator('.trend-chart > div')).toHaveCount(31);
+  await expect(page.locator('.trend-chart > div')).toHaveCount(7);
+  await expect(page.getByRole('tab', { name: '本月' })).toHaveCount(0);
 });
 
 test('JSON export and atomic import restore the ledger', async ({ page }) => {

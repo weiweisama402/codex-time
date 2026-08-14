@@ -1,12 +1,12 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CATEGORIES } from '../constants';
-import { monthBounds, shiftDateKey, shiftMonthKey, todayKey, weekBounds } from '../lib/date';
+import { shiftDateKey, todayKey, weekBounds } from '../lib/date';
 import { formatDuration } from '../lib/duration';
 import { dailySeries, entriesInRange, totals } from '../lib/stats';
 import { useAppStore } from '../store/appStore';
 
-type Period = 'day' | 'week' | 'month';
+type Period = 'day' | 'week';
 
 export function StatsPage() {
   const entries = useAppStore((state) => state.entries);
@@ -14,19 +14,13 @@ export function StatsPage() {
   const today = todayKey(settings.timezone);
   const [period, setPeriod] = useState<Period>('week');
   const [anchor, setAnchor] = useState(today);
-  const bounds: [string, string] =
-    period === 'day' ? [anchor, anchor] : period === 'week' ? weekBounds(anchor) : monthBounds(anchor);
+  const bounds: [string, string] = period === 'day' ? [anchor, anchor] : weekBounds(anchor);
   const [start, end] = bounds;
   const visible = useMemo(() => entriesInRange(entries, start, end), [entries, start, end]);
   const summary = totals(visible);
   const series = dailySeries(visible, start, end);
   const maxDay = Math.max(...series.map((item) => item.total), 1);
-  const shift = (amount: number) =>
-    setAnchor(
-      period === 'month'
-        ? shiftMonthKey(anchor, amount)
-        : shiftDateKey(anchor, amount * (period === 'day' ? 1 : 7))
-    );
+  const shift = (amount: number) => setAnchor(shiftDateKey(anchor, amount * (period === 'day' ? 1 : 7)));
   return (
     <div className="page-stack">
       <header className="page-intro compact-intro">
@@ -37,7 +31,7 @@ export function StatsPage() {
         </div>
       </header>
       <div className="segmented period-tabs" role="tablist" aria-label="统计周期">
-        {(['day', 'week', 'month'] as Period[]).map((item) => (
+        {(['day', 'week'] as Period[]).map((item) => (
           <button
             key={item}
             className={period === item ? 'active' : ''}
@@ -48,7 +42,7 @@ export function StatsPage() {
             role="tab"
             aria-selected={period === item}
           >
-            {{ day: '今日', week: '本周', month: '本月' }[item]}
+            {{ day: '今日', week: '本周' }[item]}
           </button>
         ))}
       </div>
