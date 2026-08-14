@@ -113,11 +113,15 @@ function Workspace({ userId }: { userId: string }) {
           </Routes>
         </Suspense>
       </HashRouter>
-      <PwaUpdate />
     </>
   );
 }
 
 export function App() {
-  return <SessionGate>{(userId) => <Workspace userId={userId} />}</SessionGate>;
+  return (
+    <>
+      <SessionGate>{(userId) => <Workspace userId={userId} />}</SessionGate>
+      <PwaUpdate />
+    </>
+  );
 }
