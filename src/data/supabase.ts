@@ -6,7 +6,7 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 export const cloudConfigured = Boolean(url && anonKey && !url?.includes('your-project'));
 export const supabase = cloudConfigured
   ? createClient(url!, anonKey!, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
     })
   : null;
 
@@ -31,7 +31,7 @@ export async function verifyEmailCode(email: string, token: string): Promise<Ses
   if (!supabase) throw new Error('尚未配置 Supabase');
   const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
   if (error) throw error;
-  if (!data.session) throw new Error('验证码无效或已过期');
+  if (!data.session) throw new Error('验证码已过期，请重新获取');
   return data.session;
 }
 

@@ -515,12 +515,6 @@ h3 {
   color: var(--accent);
   font-size: 0.82rem;
 }
-.form-message.error {
-  color: var(--danger);
-}
-.form-message.success {
-  color: var(--success);
-}
 .segmented {
   display: inline-flex;
   gap: 3px;
@@ -1280,16 +1274,6 @@ h3 {
 }
 .auth-card .button + .button {
   margin-top: 7px;
-}
-.auth-secondary-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px;
-  margin-top: 7px;
-}
-.auth-secondary-actions .button {
-  min-width: 0;
-  padding-inline: 8px;
 }
 .app-loading {
   min-height: 100vh;
