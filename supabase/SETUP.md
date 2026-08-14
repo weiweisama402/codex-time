@@ -14,15 +14,17 @@
 
 应用调用 `signInWithOtp(... shouldCreateUser: false)`，陌生邮箱无法自行注册。
 
-## 3. 改成 6 位验证码邮件
+## 3. 配置登录邮件
 
-在 Authentication → Email Templates → Magic Link 中，将正文中的确认链接替换为验证码变量：
+应用同时支持默认 Magic Link 和 6 位验证码。新建免费项目可以直接保留默认 Magic Link 模板；如果项目已配置自定义 SMTP，并希望改用验证码，可在 Authentication → Email Templates → Magic Link 中使用：
 
 ```html
 <h2>时衡登录验证码</h2>
 <p>你的验证码是：<strong>{{ .Token }}</strong></p>
 <p>验证码短时间内有效。如果不是你本人操作，请忽略本邮件。</p>
 ```
+
+无论使用哪种模板，应用调用 `signInWithOtp(... shouldCreateUser: false)`，不会从登录页创建陌生账号。
 
 ## 4. 配置 URL
 
