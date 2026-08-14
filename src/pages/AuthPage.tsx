@@ -16,7 +16,7 @@ export function AuthPage() {
     try {
       await requestEmailCode(email.trim());
       setSent(true);
-      setMessage('验证码已发送，请检查邮箱。');
+      setMessage('登录邮件已发送。打开邮件中的链接，或输入其中的 6 位验证码。');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '发送失败');
     } finally {
@@ -39,8 +39,9 @@ export function AuthPage() {
       <section className="auth-card">
         <Logo />
         <p className="eyebrow">个人时间实验室</p>
-        <h1>{sent ? '输入邮箱验证码' : '登录你的时间账本'}</h1>
+        <h1>{sent ? '查看登录邮件' : '登录你的时间账本'}</h1>
         <p className="muted">只有预先创建的个人账号可以登录，数据由 Supabase RLS 隔离。</p>
+        {sent && <p className="muted">打开邮件中的安全链接即可登录；若邮件提供验证码，也可在下方输入。</p>}
         <label className="field">
           <span>邮箱</span>
           <div className="input-with-icon">
@@ -79,7 +80,7 @@ export function AuthPage() {
           disabled={busy || !email || (sent && code.length !== 6)}
           onClick={() => void (sent ? verify() : request())}
         >
-          {busy ? '请稍候…' : sent ? '验证并登录' : '获取验证码'}
+          {busy ? '请稍候…' : sent ? '验证并登录' : '发送登录邮件'}
         </button>
         {sent && (
           <button

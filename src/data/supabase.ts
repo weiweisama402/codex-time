@@ -19,7 +19,11 @@ export async function currentSession(): Promise<Session | null> {
 
 export async function requestEmailCode(email: string): Promise<void> {
   if (!supabase) throw new Error('尚未配置 Supabase');
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+  const emailRedirectTo = new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false, emailRedirectTo }
+  });
   if (error) throw error;
 }
 
