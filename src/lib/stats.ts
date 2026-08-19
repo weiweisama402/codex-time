@@ -27,18 +27,3 @@ export function dailySeries(entries: TimeEntryV2[], start: string, end: string) 
     return { date, ...day };
   });
 }
-
-export function recentActivities(entries: TimeEntryV2[], limit = 6) {
-  const seen = new Set<string>();
-  return activeEntries(entries)
-    .slice()
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .filter((entry) => {
-      const key = `${entry.categoryKey}:${entry.title.trim().toLowerCase()}`;
-      if (!entry.title.trim() || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, limit)
-    .map(({ title, categoryKey }) => ({ title, categoryKey }));
-}

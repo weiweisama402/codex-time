@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEntries, dailySeries, entriesInRange, recentActivities, totals } from './stats';
+import { activeEntries, dailySeries, entriesInRange, totals } from './stats';
 import { makeEntry } from '../test/factories';
 
 describe('statistics', () => {
@@ -35,21 +35,5 @@ describe('statistics', () => {
     expect(entriesInRange(entries, '2026-08-14', '2026-08-14')).toHaveLength(3);
     const series = dailySeries(entries, '2026-08-13', '2026-08-14');
     expect(series.map((item) => item.total)).toEqual([600, 6300]);
-  });
-
-  it('deduplicates recent activity names by category and respects limits', () => {
-    const recent = recentActivities(
-      [
-        makeEntry({ title: 'VUMAT', updatedAt: '2026-08-14T09:00:00Z' }),
-        makeEntry({ title: 'vumat', updatedAt: '2026-08-14T08:00:00Z' }),
-        makeEntry({ title: 'VUMAT', categoryKey: 'extra', updatedAt: '2026-08-14T07:00:00Z' }),
-        makeEntry({ title: '  ', updatedAt: '2026-08-14T10:00:00Z' })
-      ],
-      2
-    );
-    expect(recent).toEqual([
-      { title: 'VUMAT', categoryKey: 'main' },
-      { title: 'VUMAT', categoryKey: 'extra' }
-    ]);
   });
 });

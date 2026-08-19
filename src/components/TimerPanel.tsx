@@ -1,15 +1,13 @@
 import { Pause, Play, Square } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { CATEGORIES, CATEGORY_MAP } from '../constants';
 import { activeTimerSeconds, formatClock } from '../lib/duration';
 import { useTimerNow } from '../hooks/useTimerNow';
-import { recentActivities } from '../lib/stats';
 import { useAppStore } from '../store/appStore';
 import type { CategoryKey } from '../types';
 
 export function TimerPanel() {
   const timer = useAppStore((state) => state.timer);
-  const entries = useAppStore((state) => state.entries);
   const settings = useAppStore((state) => state.settings);
   const startTimer = useAppStore((state) => state.startTimer);
   const pauseTimer = useAppStore((state) => state.pauseTimer);
@@ -19,7 +17,6 @@ export function TimerPanel() {
   const [categoryKey, setCategoryKey] = useState<CategoryKey>('main');
   const [error, setError] = useState('');
   const now = useTimerNow(timer?.status === 'running');
-  const recent = useMemo(() => recentActivities(entries), [entries]);
 
   const start = async (activity = title, category = categoryKey) => {
     setError('');
@@ -108,19 +105,6 @@ export function TimerPanel() {
           </label>
         ))}
       </fieldset>
-      {recent.length > 0 && (
-        <div className="recent-activities" role="group" aria-label="最近活动">
-          {recent.map((activity) => (
-            <button
-              key={`${activity.categoryKey}:${activity.title}`}
-              onClick={() => void start(activity.title, activity.categoryKey)}
-            >
-              <i style={{ background: CATEGORY_MAP[activity.categoryKey].color }} />
-              {activity.title}
-            </button>
-          ))}
-        </div>
-      )}
       {error && (
         <p className="form-error" role="alert">
           {error}

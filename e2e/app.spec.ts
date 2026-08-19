@@ -32,6 +32,17 @@ test('first use, manual entry and IndexedDB reload', async ({ page }) => {
   await expect(page.getByLabel('今日汇总')).toContainText('45m');
 });
 
+test('many activity names never create shortcut chips or horizontal overflow', async ({ page }) => {
+  for (const title of ['与大学同学相会', '西安旅游', '小说', '飞机', '实验数据整理', '论文写作']) {
+    await addEntry(page, title, '5');
+  }
+
+  await expect(page.getByRole('group', { name: '最近活动' })).toHaveCount(0);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)
+  ).toBe(true);
+});
+
 test('timer persists, pauses, resumes and completes', async ({ page }) => {
   await page.getByLabel('正在做什么').fill('VUMAT 调试');
   await page.getByRole('button', { name: '开始计时' }).click();
